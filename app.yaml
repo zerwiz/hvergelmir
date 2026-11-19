@@ -1,0 +1,16 @@
+# app.yaml — the app contract (Ymir's split, plan 01 §3).
+name: hvergelmir
+title: Hvergelmir — the durable news agent
+kind: service                  # a server (dna-server-api :4850) and a hub (:4851); no window of its own
+ports: [4850, 4851]            # loopback only
+units: []
+launchers: []
+icons: []
+state_dir: ${XDG_STATE_HOME:-~/.local/state}/hvergelmir
+config_dir: ${XDG_CONFIG_HOME:-~/.config}/hvergelmir
+ymir:
+  min_version: ""
+  doors: []                    # stands alone: it needs no Ymir door
+  packages: []
+upstream: "zerwiz/pi-durable-news-agent (MIT) — see UPSTREAM.md; its licence is LICENSE"
+history: "cut from zerwiz/ymir apps/hvergelmir with git filter-repo, 2026-11-19"
