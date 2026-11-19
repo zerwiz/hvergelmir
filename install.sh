@@ -21,12 +21,33 @@ if [ "${1-}" = --check ]; then
   [ -d node_modules ] || { printf 'error: the workspaces are not installed (node_modules missing) — run ./install.sh\n' >&2; exit 1; }
   npm ls --workspaces --depth=0 >/dev/null 2>&1 || { printf 'error: the installed packages do not match package-lock.json — run ./install.sh\n' >&2; exit 1; }
   [ -f apps/dna-server-api/src/main.ts ] || { printf 'error: the API source is missing\n' >&2; exit 1; }
+  CONFIG="${YMIR_APP_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/hvergelmir}"
+  for var in DNA_CLIENT_TOKEN DNA_CRON_TOKEN; do
+    grep -Eq "^${var}=.{32,}" "$CONFIG/.env" 2>/dev/null \
+      || { printf 'error: %s is not set in %s — run ./install.sh\n' "$var" "$CONFIG/.env" >&2; exit 1; }
+  done
   printf 'hvergelmir: ready (node %s, workspaces installed)\n' "$(node --version)"
   exit 0
 fi
 
 node_ok
 npm ci --no-audit --no-fund
-mkdir -p "${YMIR_APP_STATE_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/hvergelmir}" \
-         "${YMIR_APP_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/hvergelmir}"
+CONFIG="${YMIR_APP_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/hvergelmir}"
+mkdir -p "${YMIR_APP_STATE_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/hvergelmir}" "$CONFIG"
+# The config lives OUTSIDE the release, so no update or rollback touches it. A first install
+# writes it from .env.example and fills the two bearer tokens (what upstream's `just api tokens`
+# does); a token already set is never replaced, and no token is ever printed.
+if [ ! -f "$CONFIG/.env" ]; then
+  umask 077
+  cp .env.example "$CONFIG/.env"
+fi
+for var in DNA_CLIENT_TOKEN DNA_CRON_TOKEN; do
+  if ! grep -Eq "^${var}=.{32,}" "$CONFIG/.env"; then
+    tok="$(python3 -c 'import secrets; print(secrets.token_hex(24))')"
+    if grep -q "^${var}=" "$CONFIG/.env"; then sed -i "s|^${var}=.*|${var}=${tok}|" "$CONFIG/.env"
+    else printf '%s=%s\n' "$var" "$tok" >> "$CONFIG/.env"; fi
+    printf 'hvergelmir: %s generated in %s\n' "$var" "$CONFIG/.env"
+  fi
+done
+unset tok
 printf 'hvergelmir: installed — ./start.sh raises the API on :%s\n' "${DNA_PORT:-4850}"
